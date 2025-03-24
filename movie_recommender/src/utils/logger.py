@@ -4,44 +4,48 @@ from pathlib import Path
 from typing import Optional
 
 def setup_logger(
-    name: str = __name__,
-    log_file: Optional[str] = None,
-    level: int = logging.INFO,
-    format: str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    name: str,
+    level: str = "INFO",
+    log_file: Optional[str] = None
 ) -> logging.Logger:
     """
-    Set up a logger with both console and file handlers.
+    Set up a logger with the specified configuration.
     
     Args:
         name (str): Name of the logger
-        log_file (Optional[str]): Path to the log file. If None, only console logging is enabled
-        level (int): Logging level
-        format (str): Log message format
+        level (str): Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        log_file (Optional[str]): Path to log file. If None, logs to console only.
         
     Returns:
         logging.Logger: Configured logger instance
     """
     # Create logger
     logger = logging.getLogger(name)
-    logger.setLevel(level)
+    logger.setLevel(getattr(logging, level.upper()))
     
     # Create formatter
-    formatter = logging.Formatter(format)
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
     
-    # Create console handler
-    console_handler = logging.StreamHandler(sys.stdout)
+    # Create handlers
+    handlers = []
+    
+    # Console handler
+    console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
+    handlers.append(console_handler)
     
-    # Create file handler if log_file is specified
+    # File handler (if log_file is specified)
     if log_file:
-        # Create log directory if it doesn't exist
-        log_path = Path(log_file)
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        
         file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
+        handlers.append(file_handler)
+    
+    # Remove any existing handlers and add new ones
+    logger.handlers = []
+    for handler in handlers:
+        logger.addHandler(handler)
     
     return logger
 

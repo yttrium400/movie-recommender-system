@@ -2,245 +2,135 @@ import numpy as np
 import pandas as pd
 from typing import List, Tuple, Dict
 from sklearn.metrics.pairwise import cosine_similarity
-import logging
+from src.utils.logger import setup_logger
 
 class CollaborativeFiltering:
     """
-    Implements both user-based and item-based collaborative filtering for movie recommendations.
+    Implements user-based collaborative filtering for movie recommendations.
     
-    This class provides methods for:
-    1. Computing user-user and item-item similarity matrices
-    2. Predicting ratings for user-movie pairs
-    3. Generating personalized movie recommendations
-    
-    The implementation uses cosine similarity for computing similarities between users and items.
+    This class uses user-user similarity to generate recommendations based on
+    ratings from similar users. It employs cosine similarity as the similarity metric
+    and can handle both explicit and implicit feedback.
     
     Attributes:
-        k_neighbors (int): Number of neighbors to consider for predictions
-        user_similarity_matrix (np.ndarray): Matrix of similarities between users
-        item_similarity_matrix (np.ndarray): Matrix of similarities between items
         user_movie_matrix (pd.DataFrame): User-movie rating matrix
+        similarity_matrix (np.ndarray): User-user similarity matrix
         logger (logging.Logger): Logger instance for tracking operations
-    
-    Example:
-        >>> cf = CollaborativeFiltering(k_neighbors=5)
-        >>> cf.fit(user_movie_matrix)
-        >>> recommendations = cf.recommend_movies(user_id=42, n_recommendations=5)
     """
     
-    def __init__(self, k_neighbors: int = 5):
-        """
-        Initialize the collaborative filtering model.
-        
-        Args:
-            k_neighbors (int): Number of neighbors to use for predictions. A larger
-                number may provide more stable predictions but will be slower.
-                
-        Raises:
-            ValueError: If k_neighbors is less than 1
-        """
-        if k_neighbors < 1:
-            raise ValueError("k_neighbors must be at least 1")
-            
-        self.k_neighbors = k_neighbors
-        self.user_similarity_matrix = None
-        self.item_similarity_matrix = None
+    def __init__(self):
+        """Initialize the collaborative filtering model."""
         self.user_movie_matrix = None
-        self.logger = logging.getLogger(__name__)
+        self.similarity_matrix = None
+        self.logger = setup_logger(__name__)
         
     def fit(self, user_movie_matrix: pd.DataFrame) -> None:
         """
-        Fit the model by computing similarity matrices.
-        
-        This method computes both user-user and item-item similarity matrices using
-        cosine similarity. These matrices are used for making predictions and
-        recommendations.
+        Fit the collaborative filtering model.
         
         Args:
-            user_movie_matrix (pd.DataFrame): User-movie rating matrix where rows
-                represent users and columns represent movies. Values are ratings.
-        
+            user_movie_matrix (pd.DataFrame): User-movie rating matrix
+            
         Raises:
-            ValueError: If the input matrix is empty or contains invalid values.
+            ValueError: If input data is invalid
         """
+        if user_movie_matrix.empty:
+            raise ValueError("User-movie matrix cannot be empty")
+            
         try:
-            if user_movie_matrix.empty:
-                raise ValueError("Input matrix cannot be empty")
-                
             self.user_movie_matrix = user_movie_matrix
             
-            # Fill NaN with 0 for similarity calculations
+            # Fill NaN values with 0 for similarity calculation
             matrix_for_sim = user_movie_matrix.fillna(0)
             
-            # Compute user similarity matrix
-            self.user_similarity_matrix = cosine_similarity(matrix_for_sim)
+            # Calculate user-user similarity matrix
+            self.similarity_matrix = cosine_similarity(matrix_for_sim)
             
-            # Compute item similarity matrix
-            self.item_similarity_matrix = cosine_similarity(matrix_for_sim.T)
-            
-            self.logger.info("Successfully computed similarity matrices")
+            self.logger.info("Successfully fitted collaborative filtering model")
             
         except Exception as e:
-            self.logger.error(f"Error in fitting collaborative filtering model: {str(e)}")
+            self.logger.error(f"Error fitting collaborative model: {str(e)}")
             raise
             
-    def predict_user_based(self, user_id: int, movie_id: int) -> float:
+    def recommend_movies(
+        self,
+        user_id: int,
+        n_recommendations: int = 10,
+        min_similarity: float = 0.1
+    ) -> List[Tuple[int, float]]:
         """
-        Predict rating using user-based collaborative filtering.
-        
-        This method finds similar users and uses their ratings to predict the
-        rating for the target user-movie pair. The prediction is a weighted average
-        of ratings from similar users.
-        
-        Args:
-            user_id (int): ID of the user
-            movie_id (int): ID of the movie
-            
-        Returns:
-            float: Predicted rating in the range [0, 5]
-            
-        Raises:
-            ValueError: If the model hasn't been fitted or if IDs are invalid.
-            KeyError: If user_id or movie_id doesn't exist in the data.
-        """
-        try:
-            if self.user_similarity_matrix is None:
-                raise ValueError("Model not fitted. Call fit() first.")
-                
-            # Get user's row index
-            user_idx = self.user_movie_matrix.index.get_loc(user_id)
-            movie_idx = self.user_movie_matrix.columns.get_loc(movie_id)
-            
-            # Handle cold start: if user has no ratings
-            user_ratings = self.user_movie_matrix.iloc[user_idx]
-            if user_ratings.isna().all() or (user_ratings == 0).all():
-                return 0.0  # Return 0 for cold start
-            
-            # Get similar users
-            similar_users = np.argsort(self.user_similarity_matrix[user_idx])[-self.k_neighbors-1:-1]
-            
-            # Get ratings of similar users for this movie
-            similar_ratings = self.user_movie_matrix.iloc[similar_users, movie_idx]
-            similarities = self.user_similarity_matrix[user_idx, similar_users]
-            
-            # Remove NaN and 0 ratings
-            mask = ~similar_ratings.isna() & (similar_ratings != 0)
-            similar_ratings = similar_ratings[mask]
-            similarities = similarities[mask]
-            
-            # Compute weighted average
-            if len(similar_ratings) == 0 or np.sum(similarities) == 0:
-                return 0.0  # Return 0 if no valid predictions
-            
-            predicted_rating = float(np.sum(similar_ratings * similarities) / np.sum(similarities))
-            return min(max(predicted_rating, 0.0), 5.0)  # Clip to [0, 5] range
-            
-        except Exception as e:
-            self.logger.error(f"Error in user-based prediction: {str(e)}")
-            raise
-            
-    def predict_item_based(self, user_id: int, movie_id: int) -> float:
-        """
-        Predict rating using item-based collaborative filtering.
-        
-        This method finds similar items and uses the user's ratings on those items
-        to predict the rating for the target movie. The prediction is a weighted
-        average of ratings based on item similarities.
-        
-        Args:
-            user_id (int): ID of the user
-            movie_id (int): ID of the movie
-            
-        Returns:
-            float: Predicted rating in the range [0, 5]
-            
-        Raises:
-            ValueError: If the model hasn't been fitted or if IDs are invalid.
-            KeyError: If user_id or movie_id doesn't exist in the data.
-        """
-        try:
-            if self.item_similarity_matrix is None:
-                raise ValueError("Model not fitted. Call fit() first.")
-                
-            # Get indices
-            user_idx = self.user_movie_matrix.index.get_loc(user_id)
-            movie_idx = self.user_movie_matrix.columns.get_loc(movie_id)
-            
-            # Handle cold start: if user has no ratings
-            user_ratings = self.user_movie_matrix.iloc[user_idx]
-            if user_ratings.isna().all() or (user_ratings == 0).all():
-                return 0.0  # Return 0 for cold start
-            
-            # Get similar items
-            similar_items = np.argsort(self.item_similarity_matrix[movie_idx])[-self.k_neighbors-1:-1]
-            
-            # Get user's ratings for similar items
-            user_ratings = self.user_movie_matrix.iloc[user_idx, similar_items]
-            similarities = self.item_similarity_matrix[movie_idx, similar_items]
-            
-            # Remove NaN and 0 ratings
-            mask = ~user_ratings.isna() & (user_ratings != 0)
-            user_ratings = user_ratings[mask]
-            similarities = similarities[mask]
-            
-            # Compute weighted average
-            if len(user_ratings) == 0 or np.sum(similarities) == 0:
-                return 0.0  # Return 0 if no valid predictions
-            
-            predicted_rating = float(np.sum(user_ratings * similarities) / np.sum(similarities))
-            return min(max(predicted_rating, 0.0), 5.0)  # Clip to [0, 5] range
-            
-        except Exception as e:
-            self.logger.error(f"Error in item-based prediction: {str(e)}")
-            raise
-            
-    def recommend_movies(self, user_id: int, n_recommendations: int = 5, method: str = 'user') -> List[Tuple[int, float]]:
-        """
-        Recommend movies for a user.
-        
-        This method finds movies that the user hasn't rated yet and predicts their
-        ratings using either user-based or item-based collaborative filtering. The
-        movies are then sorted by predicted rating to generate recommendations.
+        Generate movie recommendations for a user.
         
         Args:
             user_id (int): ID of the user
             n_recommendations (int): Number of recommendations to return
-            method (str): 'user' for user-based or 'item' for item-based filtering
+            min_similarity (float): Minimum similarity threshold
             
         Returns:
-            List[Tuple[int, float]]: List of (movie_id, predicted_rating) tuples,
-                sorted by predicted rating in descending order
+            List[Tuple[int, float]]: List of (movie_id, predicted_rating) tuples
             
         Raises:
-            ValueError: If the method is invalid or if user_id is invalid
-            KeyError: If user_id doesn't exist in the data
+            ValueError: If parameters are invalid
         """
+        if self.user_movie_matrix is None:
+            raise ValueError("Model must be fitted before generating recommendations")
+            
         try:
-            if method not in ['user', 'item']:
-                raise ValueError("Method must be either 'user' or 'item'")
+            # Get user's index in the matrix
+            user_idx = self.user_movie_matrix.index.get_loc(user_id)
+            
+            # Get similar users
+            user_similarities = self.similarity_matrix[user_idx]
+            similar_users = np.where(user_similarities >= min_similarity)[0]
+            
+            if len(similar_users) == 0:
+                self.logger.warning(f"No similar users found for user {user_id}")
+                return []
                 
-            # Get movies user hasn't rated
-            user_ratings = self.user_movie_matrix.loc[user_id]
-            unwatched_movies = user_ratings[user_ratings.isna() | (user_ratings == 0)].index
+            # Get movies not rated by the user
+            user_ratings = self.user_movie_matrix.iloc[user_idx]
+            unrated_movies = user_ratings[user_ratings.isna() | (user_ratings == 0)].index
             
-            # Handle cold start: if user has no ratings
-            if user_ratings.isna().all() or (user_ratings == 0).all():
-                # Return top n movies with 0 ratings for cold start
-                return [(movie_id, 0.0) for movie_id in unwatched_movies[:n_recommendations]]
-            
-            # Predict ratings for unwatched movies
+            if len(unrated_movies) == 0:
+                self.logger.warning(f"No unrated movies found for user {user_id}")
+                return []
+                
+            # Calculate predicted ratings
             predictions = []
-            for movie_id in unwatched_movies:
-                if method == 'user':
-                    rating = self.predict_user_based(user_id, movie_id)
-                else:
-                    rating = self.predict_item_based(user_id, movie_id)
-                predictions.append((movie_id, rating))
+            for movie_id in unrated_movies:
+                # Get ratings for this movie from similar users
+                movie_ratings = self.user_movie_matrix[movie_id].iloc[similar_users]
+                
+                # Remove NaN values
+                valid_ratings = movie_ratings.dropna()
+                valid_similarities = user_similarities[similar_users][~movie_ratings.isna()]
+                
+                # Skip if no valid ratings
+                if len(valid_ratings) == 0:
+                    continue
+                    
+                # Calculate weighted average rating
+                weighted_sum = np.sum(valid_ratings * valid_similarities)
+                weight_sum = np.sum(valid_similarities)
+                
+                if weight_sum > 0:
+                    predicted_rating = weighted_sum / weight_sum
+                    predictions.append((movie_id, predicted_rating))
+                    
+            # Sort by predicted rating and return top N
+            recommendations = sorted(
+                predictions,
+                key=lambda x: x[1],
+                reverse=True
+            )[:n_recommendations]
             
-            # Sort by predicted rating and return top n
-            predictions.sort(key=lambda x: x[1], reverse=True)
-            return predictions[:n_recommendations]
+            self.logger.info(
+                f"Generated {len(recommendations)} recommendations for user {user_id}"
+            )
+            return recommendations
             
         except Exception as e:
-            self.logger.error(f"Error in movie recommendations: {str(e)}")
+            self.logger.error(
+                f"Error generating recommendations for user {user_id}: {str(e)}"
+            )
             raise 
