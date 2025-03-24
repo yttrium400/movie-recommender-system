@@ -7,24 +7,32 @@ import {
   Typography,
   Box,
   Alert,
+  CircularProgress,
+  Link as MuiLink
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { login } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const { loginWithCredentials } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setLoading(true);
+
     try {
-      await login(username, password);
+      await loginWithCredentials(username, password);
       navigate('/');
     } catch (error) {
       setError('Invalid username or password');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -63,9 +71,16 @@ const Login: React.FC = () => {
             variant="contained"
             size="large"
             sx={{ mt: 3 }}
+            disabled={loading}
           >
-            Login
+            {loading ? <CircularProgress size={24} /> : 'Login'}
           </Button>
+          <Box sx={{ mt: 2, textAlign: 'center' }}>
+            <Typography variant="body2">
+              Don't have an account?{' '}
+              <Link to="/register">Register now</Link>
+            </Typography>
+          </Box>
         </Box>
       </Paper>
     </Container>

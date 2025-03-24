@@ -67,6 +67,18 @@ class Token(BaseModel):
 class User(BaseModel):
     username: str
     email: Optional[str] = None
+    full_name: Optional[str] = None
+    preferred_genres: Optional[List[str]] = None
+    profile_complete: bool = False
+
+class UserCreate(BaseModel):
+    username: str
+    email: str
+    password: str
+
+class UserProfile(BaseModel):
+    full_name: Optional[str] = None
+    preferred_genres: List[str]
 
 class MovieRating(BaseModel):
     movie_id: int
@@ -220,6 +232,97 @@ async def get_user_ratings(current_user: User = Depends(get_current_user)):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/users/register")
+async def register_user(user: UserCreate):
+    """Register a new user."""
+    # In production, check if user exists and hash the password
+    # For demo, just return a success message
+    access_token = create_access_token({"sub": user.username})
+    return {"status": "success", "message": "User registered successfully", "access_token": access_token, "token_type": "bearer"}
+
+@app.post("/users/me/profile")
+async def create_user_profile(
+    profile: UserProfile,
+    current_user: User = Depends(get_current_user)
+):
+    """Create or update user profile."""
+    # Validate that exactly 5 genres are selected
+    if len(profile.preferred_genres) != 5:
+        raise HTTPException(
+            status_code=400, 
+            detail="Please select exactly 5 favorite genres"
+        )
+    
+    # In production, save to a database
+    # For demo, return user model with updated profile
+    updated_user = User(
+        username=current_user.username,
+        email=current_user.email,
+        full_name=profile.full_name,
+        preferred_genres=profile.preferred_genres,
+        profile_complete=True
+    )
+    
+    return updated_user
+
+@app.get("/users/me")
+async def get_current_user_profile(current_user: User = Depends(get_current_user)):
+    """Get current user profile information."""
+    # In production, retrieve from database
+    return current_user
+
+@app.get("/genres")
+async def get_available_genres():
+    """Get a list of all available movie genres."""
+    # Extract unique genres from the dataset
+    all_genres = []
+    for genres_str in processed_movies['genres'].unique():
+        genres = genres_str.split('|')
+        all_genres.extend(genres)
+    
+    # Get unique genres and sort
+    unique_genres = sorted(list(set(all_genres)))
+    return unique_genres
+
+@app.get("/users/me/genre-recommendations")
+async def get_genre_based_recommendations(
+    current_user: User = Depends(get_current_user),
+    n: int = Query(10, ge=1, le=20)
+):
+    """Get movie recommendations based on user's preferred genres."""
+    if not current_user.preferred_genres:
+        raise HTTPException(
+            status_code=400,
+            detail="Please complete your profile with preferred genres first"
+        )
+    
+    # Filter movies that match user's preferred genres
+    genre_matches = []
+    for _, movie in processed_movies.iterrows():
+        movie_genres = set(movie['genres'].split('|'))
+        user_genres = set(current_user.preferred_genres)
+        # Calculate how many of the user's preferred genres match this movie
+        match_count = len(movie_genres.intersection(user_genres))
+        if match_count > 0:
+            genre_matches.append((movie, match_count))
+    
+    # Sort by number of matching genres (descending)
+    genre_matches.sort(key=lambda x: x[1], reverse=True)
+    
+    # Take top N recommendations
+    recommendations = genre_matches[:n]
+    
+    result = []
+    for movie, match_count in recommendations:
+        result.append({
+            'movie_id': movie['movieId'],
+            'title': movie['title'],
+            'genres': movie['genres'],
+            'score': match_count  # Score is the number of matching genres
+        })
+    
+    return result
 
 if __name__ == "__main__":
     import uvicorn

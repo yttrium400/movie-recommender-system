@@ -32,6 +32,14 @@ export interface MovieRecommendation extends Movie {
 export interface User {
   username: string;
   email?: string;
+  full_name?: string;
+  preferred_genres?: string[];
+  profile_complete?: boolean;
+}
+
+export interface UserProfile {
+  full_name?: string;
+  preferred_genres: string[];
 }
 
 export interface MovieRating {
@@ -49,6 +57,15 @@ export const authService = {
     formData.append('username', username);
     formData.append('password', password);
     const response = await api.post('/token', formData);
+    return response.data;
+  },
+
+  async register(username: string, email: string, password: string) {
+    const response = await api.post('/users/register', {
+      username,
+      email,
+      password
+    });
     return response.data;
   },
 };
@@ -88,6 +105,26 @@ export const userService = {
 
   async getRatedMovies(): Promise<RatedMovie[]> {
     const response = await api.get('/users/me/ratings');
+    return response.data;
+  },
+
+  async getUserProfile(): Promise<User> {
+    const response = await api.get('/users/me');
+    return response.data;
+  },
+
+  async updateUserProfile(profile: UserProfile): Promise<User> {
+    const response = await api.post('/users/me/profile', profile);
+    return response.data;
+  },
+
+  async getGenres(): Promise<string[]> {
+    const response = await api.get('/genres');
+    return response.data;
+  },
+
+  async getGenreRecommendations(n = 10): Promise<MovieRecommendation[]> {
+    const response = await api.get(`/users/me/genre-recommendations?n=${n}`);
     return response.data;
   },
 };
