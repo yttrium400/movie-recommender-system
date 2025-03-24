@@ -69,14 +69,14 @@ export const movieService = {
     const response = await api.get(`/search?query=${query}&limit=${limit}`);
     return response.data;
   },
-};
 
-export const userService = {
   async rateMovie(rating: MovieRating) {
     const response = await api.post('/users/me/ratings', rating);
     return response.data;
   },
+};
 
+export const userService = {
   async getRecommendations(method = 'collaborative', n = 5) {
     const response = await api.get(`/users/me/recommendations?method=${method}&n=${n}`);
     return response.data;

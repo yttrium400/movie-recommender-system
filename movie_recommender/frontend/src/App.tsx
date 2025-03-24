@@ -1,8 +1,10 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline, AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Home from './pages/Home';
 import Login from './pages/Login';
+import MovieDetails from './pages/MovieDetails';
 
 const theme = createTheme({
   palette: {
@@ -39,21 +41,22 @@ const Navigation = () => {
   );
 };
 
-const App = () => {
+const App: React.FC = () => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
-        <Router>
+        <BrowserRouter>
           <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
             <Navigation />
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/movie/:movieId" element={<MovieDetails />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Box>
-        </Router>
+        </BrowserRouter>
       </AuthProvider>
     </ThemeProvider>
   );

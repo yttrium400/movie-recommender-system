@@ -5,10 +5,11 @@ import {
   CardActions,
   Typography,
   Rating,
-  Button,
   Chip,
   Box,
+  CardActionArea,
 } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import { Movie } from '../services/api';
 
 interface MovieCardProps {
@@ -24,31 +25,38 @@ const MovieCard: React.FC<MovieCardProps> = ({
   userRating,
   showScore = false,
 }) => {
+  const navigate = useNavigate();
   const genres = movie.genres.split('|');
+
+  const handleClick = () => {
+    navigate(`/movie/${movie.movie_id}`);
+  };
 
   return (
     <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <CardContent sx={{ flexGrow: 1 }}>
-        <Typography gutterBottom variant="h6" component="div">
-          {movie.title}
-          {movie.year && ` (${movie.year})`}
-        </Typography>
-        <Box sx={{ mb: 1 }}>
-          {genres.map((genre) => (
-            <Chip
-              key={genre}
-              label={genre}
-              size="small"
-              sx={{ mr: 0.5, mb: 0.5 }}
-            />
-          ))}
-        </Box>
-        {showScore && movie.score !== undefined && (
-          <Typography variant="body2" color="text.secondary">
-            Similarity Score: {(movie.score * 100).toFixed(1)}%
+      <CardActionArea onClick={handleClick}>
+        <CardContent sx={{ flexGrow: 1 }}>
+          <Typography gutterBottom variant="h6" component="div">
+            {movie.title}
+            {movie.year && ` (${movie.year})`}
           </Typography>
-        )}
-      </CardContent>
+          <Box sx={{ mb: 1 }}>
+            {genres.map((genre) => (
+              <Chip
+                key={genre}
+                label={genre}
+                size="small"
+                sx={{ mr: 0.5, mb: 0.5 }}
+              />
+            ))}
+          </Box>
+          {showScore && movie.score !== undefined && (
+            <Typography variant="body2" color="text.secondary">
+              Similarity Score: {(movie.score * 100).toFixed(1)}%
+            </Typography>
+          )}
+        </CardContent>
+      </CardActionArea>
       {onRate && (
         <CardActions>
           <Rating
