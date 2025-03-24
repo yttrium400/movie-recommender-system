@@ -199,6 +199,28 @@ async def search_movies(
     results = processed_movies[mask].head(limit)
     return results.to_dict('records')
 
+@app.get("/users/me/ratings")
+async def get_user_ratings(current_user: User = Depends(get_current_user)):
+    """Get all movies rated by the current user."""
+    try:
+        # In production, get user's actual ratings from database
+        # For demo, use some sample ratings
+        sample_ratings = {1: 5.0, 2: 4.0, 3: 3.0}
+        
+        result = []
+        for movie_id, rating in sample_ratings.items():
+            movie = processed_movies[processed_movies['movieId'] == movie_id].iloc[0]
+            result.append({
+                'movie_id': movie_id,
+                'title': movie['title'],
+                'genres': movie['genres'],
+                'year': movie.get('year'),
+                'rating': rating
+            })
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000) 

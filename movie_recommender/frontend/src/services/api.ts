@@ -39,6 +39,10 @@ export interface MovieRating {
   rating: number;
 }
 
+export interface RatedMovie extends Movie {
+  rating: number;
+}
+
 export const authService = {
   async login(username: string, password: string) {
     const formData = new FormData();
@@ -79,6 +83,11 @@ export const movieService = {
 export const userService = {
   async getRecommendations(method = 'collaborative', n = 5) {
     const response = await api.get(`/users/me/recommendations?method=${method}&n=${n}`);
+    return response.data;
+  },
+
+  async getRatedMovies(): Promise<RatedMovie[]> {
+    const response = await api.get('/users/me/ratings');
     return response.data;
   },
 };
