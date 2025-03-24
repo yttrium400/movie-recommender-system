@@ -35,7 +35,13 @@ class CollaborativeFiltering:
         Args:
             k_neighbors (int): Number of neighbors to use for predictions. A larger
                 number may provide more stable predictions but will be slower.
+                
+        Raises:
+            ValueError: If k_neighbors is less than 1
         """
+        if k_neighbors < 1:
+            raise ValueError("k_neighbors must be at least 1")
+            
         self.k_neighbors = k_neighbors
         self.user_similarity_matrix = None
         self.item_similarity_matrix = None
@@ -58,6 +64,9 @@ class CollaborativeFiltering:
             ValueError: If the input matrix is empty or contains invalid values.
         """
         try:
+            if user_movie_matrix.empty:
+                raise ValueError("Input matrix cannot be empty")
+                
             self.user_movie_matrix = user_movie_matrix
             
             # Compute user similarity matrix
@@ -89,6 +98,7 @@ class CollaborativeFiltering:
             
         Raises:
             ValueError: If the model hasn't been fitted or if IDs are invalid.
+            KeyError: If user_id or movie_id doesn't exist in the data.
         """
         try:
             if self.user_similarity_matrix is None:
@@ -97,6 +107,10 @@ class CollaborativeFiltering:
             # Get user's row index
             user_idx = self.user_movie_matrix.index.get_loc(user_id)
             movie_idx = self.user_movie_matrix.columns.get_loc(movie_id)
+            
+            # Handle cold start: if user has no ratings
+            if (self.user_movie_matrix.iloc[user_idx] == 0).all():
+                return 0.0
             
             # Get similar users
             similar_users = np.argsort(self.user_similarity_matrix[user_idx])[-self.k_neighbors-1:-1]
@@ -110,7 +124,7 @@ class CollaborativeFiltering:
                 return 0.0
             
             predicted_rating = float(np.sum(similar_ratings * similarities) / np.sum(similarities))
-            return predicted_rating
+            return min(max(predicted_rating, 0.0), 5.0)  # Clip to [0, 5] range
             
         except Exception as e:
             self.logger.error(f"Error in user-based prediction: {str(e)}")
@@ -133,6 +147,7 @@ class CollaborativeFiltering:
             
         Raises:
             ValueError: If the model hasn't been fitted or if IDs are invalid.
+            KeyError: If user_id or movie_id doesn't exist in the data.
         """
         try:
             if self.item_similarity_matrix is None:
@@ -141,6 +156,10 @@ class CollaborativeFiltering:
             # Get indices
             user_idx = self.user_movie_matrix.index.get_loc(user_id)
             movie_idx = self.user_movie_matrix.columns.get_loc(movie_id)
+            
+            # Handle cold start: if user has no ratings
+            if (self.user_movie_matrix.iloc[user_idx] == 0).all():
+                return 0.0
             
             # Get similar items
             similar_items = np.argsort(self.item_similarity_matrix[movie_idx])[-self.k_neighbors-1:-1]
@@ -154,7 +173,7 @@ class CollaborativeFiltering:
                 return 0.0
             
             predicted_rating = float(np.sum(user_ratings * similarities) / np.sum(similarities))
-            return predicted_rating
+            return min(max(predicted_rating, 0.0), 5.0)  # Clip to [0, 5] range
             
         except Exception as e:
             self.logger.error(f"Error in item-based prediction: {str(e)}")
@@ -179,6 +198,7 @@ class CollaborativeFiltering:
             
         Raises:
             ValueError: If the method is invalid or if user_id is invalid
+            KeyError: If user_id doesn't exist in the data
         """
         try:
             if method not in ['user', 'item']:
@@ -187,6 +207,10 @@ class CollaborativeFiltering:
             # Get movies user hasn't rated
             user_ratings = self.user_movie_matrix.loc[user_id]
             unwatched_movies = user_ratings[user_ratings == 0].index
+            
+            # Handle cold start: if user has no ratings
+            if (user_ratings == 0).all():
+                return [(movie_id, 0.0) for movie_id in unwatched_movies[:n_recommendations]]
             
             # Predict ratings for unwatched movies
             predictions = []
