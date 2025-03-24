@@ -1,0 +1,24 @@
+api_settings:
+  debug: true
+  host: 0.0.0.0
+  port: 8000
+model_params:
+  collaborative:
+    lr_all: 0.005
+    n_epochs: 20
+    n_factors: 100
+    reg_all: 0.02
+  content_based:
+    max_df: 0.95
+    min_df: 0.01
+    ngram_range:
+    - 1
+    - 2
+  matrix_factorization:
+    learning_rate: 0.001
+    max_iter: 100
+    n_components: 50
+streamlit_settings:
+  layout: wide
+  page_icon: "\U0001F3AC"
+  page_title: Movie Recommender
