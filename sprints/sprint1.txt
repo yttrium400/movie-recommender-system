@@ -6,45 +6,56 @@ Set up the foundation for the movie recommender system by implementing data load
 Requirements:
 
 1. Data Loading:
-   - Load movie data from CSV files (movies.csv, ratings.csv, tags.csv)
+   - Load data from MovieLens dataset files:
+     * movies.csv (483KB, 9744 movies):
+       - movieId: Unique movie identifier
+       - title: Movie title with year
+       - genres: Pipe-separated list of genres
+     * ratings.csv (2.4MB):
+       - userId: User identifier
+       - movieId: Movie identifier
+       - rating: Rating score
+       - timestamp: Rating timestamp
    - Implement a MovieDataLoader class with methods:
      * load_movies(): Load and return movies data
      * load_ratings(): Load and return ratings data
-     * load_tags(): Load and return tags data
    - Handle missing or corrupted files gracefully
    - Implement proper error handling and logging
 
 2. Data Preprocessing:
    - Clean and preprocess movie data:
-     * Extract year from movie titles
-     * Clean genre information
+     * Extract year from movie titles (e.g., "Toy Story (1995)" -> "Toy Story", 1995)
+     * Convert genres to a structured format
      * Handle missing values
    - Process ratings data:
      * Create user-movie rating matrix
-     * Handle sparse ratings
+     * Handle sparse ratings (>9700 movies, potentially many users)
      * Normalize ratings if needed
-   - Process tags data:
-     * Clean and normalize tags
-     * Aggregate tags by movie
-     * Remove irrelevant or noise tags
+   - Create data splits:
+     * Training set
+     * Validation set
+     * Test set
 
 3. Data Validation:
    - Verify data integrity
    - Check for required columns
    - Validate data types
    - Handle edge cases (empty files, corrupted data)
+   - Verify movie-rating consistency
 
 4. Testing Requirements:
    - Test data loading functionality
    - Test preprocessing methods
    - Test edge cases and error handling
    - Verify data quality after preprocessing
+   - Test data splitting
 
 5. Project Structure:
    - Set up proper project structure
    - Implement logging system
    - Create configuration management
    - Set up version control
+   - Add data documentation
 
 Evaluation Criteria:
 1. Code quality and organization
@@ -58,4 +69,4 @@ Deliverables:
 2. Data preprocessing utilities
 3. Test suite
 4. Project structure and configuration
-5. Documentation 
+5. Documentation of data structure and preprocessing steps 
