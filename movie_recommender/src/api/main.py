@@ -52,6 +52,10 @@ processed_movies = preprocessor.process_movie_metadata(movies_df)
 collaborative_model = CollaborativeFiltering()
 content_based_model = ContentBasedFiltering()
 
+# In-memory storage for user data (for demo purposes)
+user_ratings = {}  # Dictionary to store user ratings: {username: {movie_id: rating}}
+user_profiles = {}  # Dictionary to store user profiles: {username: UserProfile}
+
 # Fit content-based model
 content_based_model.fit(processed_movies)
 
@@ -160,8 +164,40 @@ async def rate_movie(
     current_user: User = Depends(get_current_user)
 ):
     """Submit a movie rating."""
-    # In production, save to a database
+    username = current_user.username
+    
+    # Initialize user ratings dict if it doesn't exist
+    if username not in user_ratings:
+        user_ratings[username] = {}
+    
+    # Store the rating
+    user_ratings[username][rating.movie_id] = rating.rating
+    
     return {"status": "success", "message": "Rating submitted"}
+
+@app.get("/users/me/ratings", response_model=List[dict])
+async def get_user_ratings(current_user: User = Depends(get_current_user)):
+    """Get all ratings submitted by the current user."""
+    username = current_user.username
+    
+    if username not in user_ratings or not user_ratings[username]:
+        return []
+    
+    result = []
+    for movie_id, rating_value in user_ratings[username].items():
+        try:
+            movie = processed_movies[processed_movies['movieId'] == movie_id].iloc[0]
+            result.append({
+                'movie_id': movie_id,
+                'title': movie['title'],
+                'genres': movie['genres'],
+                'rating': rating_value
+            })
+        except IndexError:
+            # Skip if movie not found
+            continue
+    
+    return result
 
 @app.get("/users/me/recommendations")
 async def get_recommendations(
@@ -170,17 +206,25 @@ async def get_recommendations(
     n: int = Query(5, ge=1, le=20)
 ):
     """Get personalized movie recommendations."""
-    # In production, get user's actual ratings from database
-    # For demo, use some sample ratings
-    sample_ratings = {1: 5.0, 2: 4.0, 3: 3.0}
+    username = current_user.username
+    
+    # Get user's actual ratings or use sample ratings
+    user_movie_ratings = {}
+    if username in user_ratings:
+        user_movie_ratings = user_ratings[username]
+    
+    # If no ratings yet, use sample data
+    if not user_movie_ratings:
+        user_movie_ratings = {1: 5.0, 2: 4.0, 3: 3.0}
     
     if method == "collaborative":
-        recommendations = collaborative_model.recommend_movies(1, n_recommendations=n)  # Using user_id=1 for demo
+        # For demo, just use user_id=1, in production would map username to user_id
+        recommendations = collaborative_model.recommend_movies(1, n_recommendations=n)
     elif method == "content":
-        recommendations = content_based_model.recommend_movies(sample_ratings, n_recommendations=n)
+        recommendations = content_based_model.recommend_movies(user_movie_ratings, n_recommendations=n)
     else:  # hybrid
         collab_recs = collaborative_model.recommend_movies(1, n_recommendations=n)
-        content_recs = content_based_model.recommend_movies(sample_ratings, n_recommendations=n)
+        content_recs = content_based_model.recommend_movies(user_movie_ratings, n_recommendations=n)
         # Combine and sort by score
         all_recs = collab_recs + content_recs
         all_recs.sort(key=lambda x: x[1], reverse=True)
@@ -211,28 +255,6 @@ async def search_movies(
     results = processed_movies[mask].head(limit)
     return results.to_dict('records')
 
-@app.get("/users/me/ratings")
-async def get_user_ratings(current_user: User = Depends(get_current_user)):
-    """Get all movies rated by the current user."""
-    try:
-        # In production, get user's actual ratings from database
-        # For demo, use some sample ratings
-        sample_ratings = {1: 5.0, 2: 4.0, 3: 3.0}
-        
-        result = []
-        for movie_id, rating in sample_ratings.items():
-            movie = processed_movies[processed_movies['movieId'] == movie_id].iloc[0]
-            result.append({
-                'movie_id': movie_id,
-                'title': movie['title'],
-                'genres': movie['genres'],
-                'year': movie.get('year'),
-                'rating': rating
-            })
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.post("/users/register")
 async def register_user(user: UserCreate):
     """Register a new user."""
@@ -254,7 +276,11 @@ async def create_user_profile(
             detail="Please select exactly 5 favorite genres"
         )
     
-    # In production, save to a database
+    username = current_user.username
+    
+    # Store the profile
+    user_profiles[username] = profile
+    
     # For demo, return user model with updated profile
     updated_user = User(
         username=current_user.username,
@@ -269,7 +295,22 @@ async def create_user_profile(
 @app.get("/users/me")
 async def get_current_user_profile(current_user: User = Depends(get_current_user)):
     """Get current user profile information."""
-    # In production, retrieve from database
+    username = current_user.username
+    
+    # Get stored profile if it exists
+    profile = user_profiles.get(username)
+    
+    if profile:
+        # Return user with profile data
+        return User(
+            username=current_user.username,
+            email=current_user.email,
+            full_name=profile.full_name,
+            preferred_genres=profile.preferred_genres,
+            profile_complete=True
+        )
+    
+    # Otherwise return basic user info
     return current_user
 
 @app.get("/genres")

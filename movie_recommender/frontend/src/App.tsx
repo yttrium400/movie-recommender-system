@@ -18,75 +18,82 @@ const darkTheme = createTheme({
   },
 });
 
-// Protected route component to require authentication
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated } = useAuth();
-  
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-  
-  return <>{children}</>;
-};
-
-// Route that redirects to home if user is already authenticated
-const AuthRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated } = useAuth();
-  
-  if (isAuthenticated) {
-    return <Navigate to="/" replace />;
-  }
-  
-  return <>{children}</>;
-};
-
 const App: React.FC = () => {
   return (
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
       <AuthProvider>
-        <BrowserRouter>
-          <Navigation />
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route 
-              path="/login" 
-              element={
-                <AuthRoute>
-                  <Login />
-                </AuthRoute>
-              } 
-            />
-            <Route 
-              path="/register" 
-              element={
-                <AuthRoute>
-                  <Register />
-                </AuthRoute>
-              } 
-            />
-            <Route 
-              path="/profile-setup" 
-              element={
-                <ProtectedRoute>
-                  <ProfileSetup />
-                </ProtectedRoute>
-              } 
-            />
-            <Route path="/movie/:movieId" element={<MovieDetails />} />
-            <Route 
-              path="/profile" 
-              element={
-                <ProtectedRoute>
-                  <UserProfile />
-                </ProtectedRoute>
-              } 
-            />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </BrowserRouter>
+        <AppRoutes />
       </AuthProvider>
     </ThemeProvider>
+  );
+};
+
+// Separate component for routes to ensure auth context is available
+const AppRoutes = () => {
+  // Protected route component to require authentication
+  const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+    const { isAuthenticated } = useAuth();
+    
+    if (!isAuthenticated) {
+      return <Navigate to="/login" replace />;
+    }
+    
+    return <>{children}</>;
+  };
+
+  // Route that redirects to home if user is already authenticated
+  const AuthRoute = ({ children }: { children: React.ReactNode }) => {
+    const { isAuthenticated } = useAuth();
+    
+    if (isAuthenticated) {
+      return <Navigate to="/" replace />;
+    }
+    
+    return <>{children}</>;
+  };
+
+  return (
+    <BrowserRouter>
+      <Navigation />
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route 
+          path="/login" 
+          element={
+            <AuthRoute>
+              <Login />
+            </AuthRoute>
+          } 
+        />
+        <Route 
+          path="/register" 
+          element={
+            <AuthRoute>
+              <Register />
+            </AuthRoute>
+          } 
+        />
+        <Route 
+          path="/profile-setup" 
+          element={
+            <ProtectedRoute>
+              <ProfileSetup />
+            </ProtectedRoute>
+          } 
+        />
+        <Route path="/movie/:movieId" element={<MovieDetails />} />
+        <Route 
+          path="/profile" 
+          element={
+            <ProtectedRoute>
+              <UserProfile />
+            </ProtectedRoute>
+          } 
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 };
 
