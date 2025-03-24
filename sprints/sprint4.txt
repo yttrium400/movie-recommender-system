@@ -1,67 +1,70 @@
-Sprint 4: Hybrid Recommender System
+Sprint 4: User Profile and Interaction Enhancement
 
-Objective:
-Combine collaborative filtering and content-based approaches into a hybrid recommender system for improved recommendations.
+Goals:
+1. Implement User Profile Creation
+   - Allow users to create their own profile
+   - Collect basic user information
+   - Store user preferences securely
 
-Requirements:
+2. Genre Preference Selection
+   - Add a step to select 5 favorite genres
+   - Create an engaging UI for genre selection
+   - Validate that exactly 5 genres are selected
 
-1. Hybrid Recommender Core:
-   - Implement a HybridRecommender class with methods:
-     * __init__(self, weights={'collaborative': 0.6, 'content': 0.4}): Initialize with component weights
-     * fit(self, movies_data, ratings_data): Train both recommenders
-     * predict(self, user_id, movie_id): Get weighted prediction
-     * recommend_movies(self, user_id, n=5): Get hybrid recommendations
+3. Profile Completion Flow
+   - Add "Finish your profile" button
+   - Implement navigation to home page after profile completion
+   - Save user preferences to backend
 
-2. Integration Components:
-   - Combine predictions from both systems:
-     * Weight predictions appropriately
-     * Handle missing predictions
-     * Normalize scores across methods
-   - Handle cold start problems:
-     * New users (favor content-based)
-     * New items (favor content-based)
-     * Sparse ratings (adjust weights)
+4. Personalized Home Page
+   - Display movies based on selected genres
+   - Implement 5-star rating system for movies
+   - Update UI to show current user ratings
+   - Store ratings in the backend
 
-3. Advanced Features:
-   - Implement adaptive weighting:
-     * Based on user rating count
-     * Based on item popularity
-     * Based on prediction confidence
-   - Add explanation generation:
-     * Why items were recommended
-     * Which method contributed more
-     * Similar items/users considered
+5. Universal Search and Review System
+   - Enable movie search from any page
+   - Implement movie review functionality
+   - Allow users to rate any movie they find
+   - Store user reviews and ratings
 
-4. Testing Requirements:
-   - Test hybrid recommendations
-   - Test weight combinations
-   - Test cold start handling
-   - Compare with individual methods
-   - Verify explanation generation
+6. Enhanced Recommendation System
+   - Update recommendation algorithm to consider:
+     * User's genre preferences
+     * Movie ratings
+     * Review history
+   - Implement real-time recommendation updates
+   - Add "Similar Movies" section
 
-5. Performance Optimization:
-   - Optimize prediction speed
-   - Implement caching
-   - Handle large-scale recommendations
-   - Profile memory usage
+Technical Requirements:
+1. Frontend:
+   - Add user profile creation forms
+   - Implement genre selection component
+   - Create rating component for movies
+   - Add review submission functionality
+   - Update recommendation display
 
-6. API and Interface:
-   - Create clean API for recommendations
-   - Add configuration options
-   - Implement progress tracking
-   - Add recommendation explanations
+2. Backend:
+   - Add user profile endpoints
+   - Implement genre preference storage
+   - Create rating storage system
+   - Update recommendation algorithm
+   - Add review storage and retrieval
 
-Evaluation Criteria:
-1. Recommendation quality
-2. Cold start handling
-3. Performance and scalability
-4. Code quality and organization
-5. Documentation and usability
+3. Database:
+   - Add user profiles table
+   - Create genre preferences table
+   - Add ratings table
+   - Create reviews table
 
-Deliverables:
-1. HybridRecommender implementation
-2. Integration with existing components
-3. Comprehensive test suite
-4. Performance analysis
-5. API documentation
-6. Usage examples 
+4. Testing:
+   - Unit tests for new components
+   - Integration tests for user flow
+   - API endpoint testing
+   - Recommendation algorithm testing
+
+Timeline:
+- Week 1: User Profile Creation & Genre Selection
+- Week 2: Rating System & Review Implementation
+- Week 3: Recommendation System Enhancement
+- Week 4: Testing & Bug Fixes 
