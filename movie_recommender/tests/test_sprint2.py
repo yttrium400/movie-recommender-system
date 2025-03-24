@@ -7,8 +7,9 @@ import pytest
 # Add the src directory to Python path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.data_processing.data_loader import MovieDataLoader
 from src.models.collaborative_filtering import CollaborativeFiltering
+from src.data_processing.data_loader import MovieDataLoader
+from src.data_processing.preprocessor import MovieDataPreprocessor
 from src.utils.logger import setup_logger
 
 # Set up logging
@@ -25,6 +26,19 @@ def sample_data():
         4: [4, 2, 0, 0, 1]
     }
     return pd.DataFrame(data, index=[1, 2, 3, 4, 5])
+
+@pytest.fixture
+def real_data():
+    """Load real MovieLens data for testing"""
+    loader = MovieDataLoader()
+    preprocessor = MovieDataPreprocessor()
+    
+    movies_df, ratings_df = loader.load_data()
+    processed_ratings = preprocessor.process_ratings(ratings_df)
+    train, val, _ = preprocessor.split_data(processed_ratings, method='time')
+    
+    user_movie_matrix = preprocessor.create_user_movie_matrix(train)
+    return user_movie_matrix, val
 
 def test_collaborative_filtering_initialization():
     """Test initialization of CollaborativeFiltering class"""
@@ -55,7 +69,12 @@ def test_collaborative_filtering_fit(sample_data):
     assert cf.user_similarity_matrix.shape == (5, 5)
     assert cf.item_similarity_matrix.shape == (5, 5)
     
-    # Test with empty matrix
+    # Check similarity matrix properties
+    assert np.allclose(cf.user_similarity_matrix.diagonal(), 1.0)
+    assert np.allclose(cf.user_similarity_matrix, cf.user_similarity_matrix.T)
+    assert np.allclose(cf.item_similarity_matrix, cf.item_similarity_matrix.T)
+    
+    # Test with empty data
     with pytest.raises(ValueError):
         cf.fit(pd.DataFrame())
 
@@ -66,10 +85,12 @@ def test_user_based_prediction(sample_data):
     
     # Test prediction for known rating
     pred = cf.predict_user_based(1, 0)
+    assert isinstance(pred, float)
     assert 0 <= pred <= 5
     
     # Test prediction for unknown rating
     pred = cf.predict_user_based(1, 2)
+    assert isinstance(pred, float)
     assert 0 <= pred <= 5
     
     # Test with non-existent user
@@ -79,6 +100,12 @@ def test_user_based_prediction(sample_data):
     # Test with non-existent movie
     with pytest.raises(KeyError):
         cf.predict_user_based(1, 999)
+    
+    # Test cold start handling
+    new_user_data = pd.Series([0, 0, 0, 0, 0], name=6)
+    new_data = pd.concat([sample_data, pd.DataFrame([new_user_data])])
+    cf.fit(new_data)
+    assert cf.predict_user_based(6, 0) == 0.0
 
 def test_item_based_prediction(sample_data):
     """Test item-based prediction"""
@@ -87,10 +114,12 @@ def test_item_based_prediction(sample_data):
     
     # Test prediction for known rating
     pred = cf.predict_item_based(1, 0)
+    assert isinstance(pred, float)
     assert 0 <= pred <= 5
     
     # Test prediction for unknown rating
     pred = cf.predict_item_based(1, 2)
+    assert isinstance(pred, float)
     assert 0 <= pred <= 5
     
     # Test with non-existent user
@@ -100,6 +129,12 @@ def test_item_based_prediction(sample_data):
     # Test with non-existent movie
     with pytest.raises(KeyError):
         cf.predict_item_based(1, 999)
+    
+    # Test cold start handling
+    new_user_data = pd.Series([0, 0, 0, 0, 0], name=6)
+    new_data = pd.concat([sample_data, pd.DataFrame([new_user_data])])
+    cf.fit(new_data)
+    assert cf.predict_item_based(6, 0) == 0.0
 
 def test_movie_recommendations(sample_data):
     """Test movie recommendations"""
@@ -109,14 +144,14 @@ def test_movie_recommendations(sample_data):
     # Test user-based recommendations
     recs = cf.recommend_movies(1, n_recommendations=3, method='user')
     assert len(recs) <= 3
-    for movie_id, rating in recs:
-        assert 0 <= rating <= 5
+    assert all(isinstance(r, tuple) and len(r) == 2 for r in recs)
+    assert all(0 <= rating <= 5 for _, rating in recs)
     
     # Test item-based recommendations
     recs = cf.recommend_movies(1, n_recommendations=3, method='item')
     assert len(recs) <= 3
-    for movie_id, rating in recs:
-        assert 0 <= rating <= 5
+    assert all(isinstance(r, tuple) and len(r) == 2 for r in recs)
+    assert all(0 <= rating <= 5 for _, rating in recs)
     
     # Test with invalid method
     with pytest.raises(ValueError):
@@ -149,46 +184,34 @@ def test_cold_start_handling(sample_data):
     for _, rating in recs:
         assert rating == 0.0
 
-def test_real_data():
+def test_real_data(real_data):
     """Test with real MovieLens data"""
-    # Create a small subset of MovieLens-style data
-    users = range(1, 11)
-    movies = range(1, 21)
-    np.random.seed(42)
+    user_movie_matrix, validation_data = real_data
+    cf = CollaborativeFiltering(k_neighbors=10)
+    cf.fit(user_movie_matrix)
     
-    data = {}
-    for movie in movies:
-        ratings = np.zeros(len(users))
-        # Randomly assign ratings (1-5) to 60% of user-movie pairs
-        mask = np.random.choice([0, 1], size=len(users), p=[0.4, 0.6])
-        ratings[mask == 1] = np.random.randint(1, 6, size=sum(mask))
-        data[movie] = ratings
+    # Test predictions on validation set
+    predictions = []
+    actuals = []
     
-    df = pd.DataFrame(data, index=users)
+    # Sample a subset of validation data for testing
+    sample_size = min(1000, len(validation_data))
+    validation_sample = validation_data.sample(n=sample_size, random_state=42)
     
-    # Test collaborative filtering with this data
-    cf = CollaborativeFiltering(k_neighbors=3)
-    cf.fit(df)
+    for _, row in validation_sample.iterrows():
+        try:
+            pred = cf.predict_user_based(row['userId'], row['movieId'])
+            if pred > 0:  # Only consider non-zero predictions
+                predictions.append(pred)
+                actuals.append(row['rating'])
+        except (ValueError, KeyError):
+            continue
     
-    # Test recommendations for a few users
-    for user_id in [1, 5, 10]:
-        recs = cf.recommend_movies(user_id, n_recommendations=5)
-        assert len(recs) <= 5
-        for movie_id, rating in recs:
-            assert 0 <= rating <= 5
+    if predictions:
+        rmse = np.sqrt(np.mean([(p - a) ** 2 for p, a in zip(predictions, actuals)]))
+        assert rmse <= 1.5, "RMSE too high on validation data"
+    
+    logger.info("Real data test passed successfully")
 
 if __name__ == "__main__":
-    logger.info("Starting Sprint 2 tests...")
-    
-    try:
-        test_collaborative_filtering_initialization()
-        test_collaborative_filtering_fit()
-        test_user_based_prediction()
-        test_item_based_prediction()
-        test_movie_recommendations()
-        test_cold_start_handling()
-        test_real_data()
-        logger.info("All Sprint 2 tests passed successfully!")
-    except Exception as e:
-        logger.error(f"Test failed: {str(e)}")
-        raise 
+    pytest.main([__file__, "-v"]) 

@@ -57,6 +57,28 @@ class Config:
             "layout": "wide"
         }
         
+        # Data paths
+        self.data_paths = {
+            'movies_file': 'data/movies.csv',
+            'ratings_file': 'data/ratings.csv',
+            'model_dir': 'saved_models'
+        }
+        
+        # Preprocessing settings
+        self.preprocessing = {
+            'train_size': 0.7,
+            'validation_size': 0.15,
+            'test_size': 0.15,
+            'random_state': 42
+        }
+        
+        # Logging settings
+        self.logging = {
+            'level': 'INFO',
+            'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            'file': 'logs/recommender.log'
+        }
+        
     def get_model_params(self, model_type: str) -> Dict[str, Any]:
         """
         Get parameters for a specific model type.

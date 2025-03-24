@@ -69,11 +69,14 @@ class CollaborativeFiltering:
                 
             self.user_movie_matrix = user_movie_matrix
             
+            # Fill NaN with 0 for similarity calculations
+            matrix_for_sim = user_movie_matrix.fillna(0)
+            
             # Compute user similarity matrix
-            self.user_similarity_matrix = cosine_similarity(user_movie_matrix)
+            self.user_similarity_matrix = cosine_similarity(matrix_for_sim)
             
             # Compute item similarity matrix
-            self.item_similarity_matrix = cosine_similarity(user_movie_matrix.T)
+            self.item_similarity_matrix = cosine_similarity(matrix_for_sim.T)
             
             self.logger.info("Successfully computed similarity matrices")
             
@@ -109,8 +112,9 @@ class CollaborativeFiltering:
             movie_idx = self.user_movie_matrix.columns.get_loc(movie_id)
             
             # Handle cold start: if user has no ratings
-            if (self.user_movie_matrix.iloc[user_idx] == 0).all():
-                return 0.0
+            user_ratings = self.user_movie_matrix.iloc[user_idx]
+            if user_ratings.isna().all() or (user_ratings == 0).all():
+                return 0.0  # Return 0 for cold start
             
             # Get similar users
             similar_users = np.argsort(self.user_similarity_matrix[user_idx])[-self.k_neighbors-1:-1]
@@ -119,9 +123,14 @@ class CollaborativeFiltering:
             similar_ratings = self.user_movie_matrix.iloc[similar_users, movie_idx]
             similarities = self.user_similarity_matrix[user_idx, similar_users]
             
+            # Remove NaN and 0 ratings
+            mask = ~similar_ratings.isna() & (similar_ratings != 0)
+            similar_ratings = similar_ratings[mask]
+            similarities = similarities[mask]
+            
             # Compute weighted average
-            if np.sum(similarities) == 0:
-                return 0.0
+            if len(similar_ratings) == 0 or np.sum(similarities) == 0:
+                return 0.0  # Return 0 if no valid predictions
             
             predicted_rating = float(np.sum(similar_ratings * similarities) / np.sum(similarities))
             return min(max(predicted_rating, 0.0), 5.0)  # Clip to [0, 5] range
@@ -158,8 +167,9 @@ class CollaborativeFiltering:
             movie_idx = self.user_movie_matrix.columns.get_loc(movie_id)
             
             # Handle cold start: if user has no ratings
-            if (self.user_movie_matrix.iloc[user_idx] == 0).all():
-                return 0.0
+            user_ratings = self.user_movie_matrix.iloc[user_idx]
+            if user_ratings.isna().all() or (user_ratings == 0).all():
+                return 0.0  # Return 0 for cold start
             
             # Get similar items
             similar_items = np.argsort(self.item_similarity_matrix[movie_idx])[-self.k_neighbors-1:-1]
@@ -168,9 +178,14 @@ class CollaborativeFiltering:
             user_ratings = self.user_movie_matrix.iloc[user_idx, similar_items]
             similarities = self.item_similarity_matrix[movie_idx, similar_items]
             
+            # Remove NaN and 0 ratings
+            mask = ~user_ratings.isna() & (user_ratings != 0)
+            user_ratings = user_ratings[mask]
+            similarities = similarities[mask]
+            
             # Compute weighted average
-            if np.sum(similarities) == 0:
-                return 0.0
+            if len(user_ratings) == 0 or np.sum(similarities) == 0:
+                return 0.0  # Return 0 if no valid predictions
             
             predicted_rating = float(np.sum(user_ratings * similarities) / np.sum(similarities))
             return min(max(predicted_rating, 0.0), 5.0)  # Clip to [0, 5] range
@@ -206,10 +221,11 @@ class CollaborativeFiltering:
                 
             # Get movies user hasn't rated
             user_ratings = self.user_movie_matrix.loc[user_id]
-            unwatched_movies = user_ratings[user_ratings == 0].index
+            unwatched_movies = user_ratings[user_ratings.isna() | (user_ratings == 0)].index
             
             # Handle cold start: if user has no ratings
-            if (user_ratings == 0).all():
+            if user_ratings.isna().all() or (user_ratings == 0).all():
+                # Return top n movies with 0 ratings for cold start
                 return [(movie_id, 0.0) for movie_id in unwatched_movies[:n_recommendations]]
             
             # Predict ratings for unwatched movies

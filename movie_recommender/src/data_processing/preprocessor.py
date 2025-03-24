@@ -30,16 +30,15 @@ class MovieDataPreprocessor:
             # Create a copy to avoid modifying the original
             df = movies_df.copy()
             
-            # Extract year from title
-            df['year'] = df['title'].str.extract(r'\((\d{4})\)').astype('float')
+            # Extract year from title and use 1900 as default for missing years
+            df['year'] = df['title'].str.extract(r'\((\d{4})\)').fillna(1900).astype('int32')
             df['title'] = df['title'].str.replace(r'\s*\(\d{4}\)', '', regex=True)
             
             # Process genres
             df['genres'] = df['genres'].fillna('')
-            df['genres'] = df['genres'].str.replace('|', ' ')
             
             # Create genre indicator columns
-            genre_dummies = df['genres'].str.get_dummies(sep=' ')
+            genre_dummies = df['genres'].str.get_dummies(sep='|').astype('bool')
             df = pd.concat([df, genre_dummies], axis=1)
             
             self.logger.info("Successfully processed movie metadata")
@@ -141,4 +140,94 @@ class MovieDataPreprocessor:
             
         except Exception as e:
             self.logger.error(f"Error preparing data for training: {str(e)}")
+            raise
+
+    def split_data(self, ratings_df: pd.DataFrame, method: str = 'time', train_size: float = 0.7, val_size: float = 0.15) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """
+        Split the ratings data into train, validation, and test sets.
+        
+        Args:
+            ratings_df (pd.DataFrame): Processed ratings dataframe
+            method (str): 'time' for chronological split or 'random' for random split
+            train_size (float): Proportion of data for training
+            val_size (float): Proportion of data for validation
+            
+        Returns:
+            Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: Train, validation, and test sets
+            
+        Raises:
+            ValueError: If method is invalid or if split proportions are invalid
+        """
+        try:
+            if method not in ['time', 'random']:
+                raise ValueError("Method must be either 'time' or 'random'")
+                
+            if not 0 < train_size < 1 or not 0 < val_size < 1 or train_size + val_size >= 1:
+                raise ValueError("Invalid split proportions")
+                
+            test_size = 1 - train_size - val_size
+            
+            if method == 'time':
+                # Sort by timestamp
+                df = ratings_df.sort_values('timestamp')
+                
+                # Calculate split indices
+                train_idx = int(len(df) * train_size)
+                val_idx = int(len(df) * (train_size + val_size))
+                
+                # Split data
+                train = df.iloc[:train_idx]
+                val = df.iloc[train_idx:val_idx]
+                test = df.iloc[val_idx:]
+                
+            else:  # random split
+                # Shuffle data
+                df = ratings_df.sample(frac=1, random_state=42)
+                
+                # Calculate split indices
+                train_idx = int(len(df) * train_size)
+                val_idx = int(len(df) * (train_size + val_size))
+                
+                # Split data
+                train = df.iloc[:train_idx]
+                val = df.iloc[train_idx:val_idx]
+                test = df.iloc[val_idx:]
+            
+            self.logger.info(f"Successfully split data using {method} method")
+            return train, val, test
+            
+        except Exception as e:
+            self.logger.error(f"Error splitting data: {str(e)}")
+            raise
+            
+    def create_user_movie_matrix(self, ratings_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Create a user-movie matrix from ratings data.
+        
+        Args:
+            ratings_df (pd.DataFrame): Processed ratings dataframe
+            
+        Returns:
+            pd.DataFrame: User-movie matrix with users as rows and movies as columns
+            
+        Raises:
+            ValueError: If required columns are missing
+        """
+        try:
+            required_columns = ['userId', 'movieId', 'rating']
+            if not all(col in ratings_df.columns for col in required_columns):
+                raise ValueError(f"Missing required columns: {required_columns}")
+            
+            # Create pivot table without filling NaN values
+            user_movie_matrix = ratings_df.pivot(
+                index='userId',
+                columns='movieId',
+                values='rating'
+            )
+            
+            self.logger.info("Successfully created user-movie matrix")
+            return user_movie_matrix
+            
+        except Exception as e:
+            self.logger.error(f"Error creating user-movie matrix: {str(e)}")
             raise
